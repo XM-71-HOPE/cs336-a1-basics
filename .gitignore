@@ -161,3 +161,7 @@ cython_debug/
 
 .ruff_cache/
 *.zip
+
+# Datasets
+# datasets can be re-downloaded and rebuilt, no reason to track them
+data/
