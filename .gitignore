@@ -168,3 +168,4 @@ data/
 
 # Sandbox
 # a python file to mess around with, shouldn't be tracked
+sandbox.py
