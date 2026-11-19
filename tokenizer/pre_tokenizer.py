@@ -41,6 +41,3 @@ class PreTokenizer:
             else:
                 res[chunk] = 1
         return res
-
-        
-    
