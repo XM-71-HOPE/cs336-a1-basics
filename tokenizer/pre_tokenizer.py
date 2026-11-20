@@ -19,7 +19,7 @@ class PreTokenizer:
     def compute(
         self,
         input: str,
-    ) -> dict[bytes, int]:
+    ) -> dict[tuple[bytes, ...], int]:
         """
         Pre-tokenizes the input string
 
@@ -27,7 +27,7 @@ class PreTokenizer:
             input: the input string to pre-tokenize
         
         Returns:
-            dict[bytes, int] representing the pre-tokens and the word count
+            dict[tuple[bytes, ...], int] representing the pre-tokens in the tuple of the characters and the word count
         """
         res = {}
         iter = re.finditer(
@@ -36,8 +36,13 @@ class PreTokenizer:
         )
         for _match in iter:
             chunk = _match.group()
-            if res.__contains__(chunk):
-                res[chunk] += 1
+            chars = []
+            for i in range(len(chunk)):
+                chars.append(chunk[i:i+1])
+            chars = tuple(chars)
+
+            if res.__contains__(chars):
+                res[chars] += 1
             else:
-                res[chunk] = 1
+                res[chars] = 1
         return res
