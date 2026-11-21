@@ -38,7 +38,7 @@ class PreTokenizer:
             chunk = _match.group()
             chars = []
             for i in range(len(chunk)):
-                chars.append(chunk[i:i+1])
+                chars.append(chunk[i:i+1].encode("utf-8"))
             chars = tuple(chars)
 
             if res.__contains__(chars):
@@ -46,3 +46,4 @@ class PreTokenizer:
             else:
                 res[chars] = 1
         return res
+
