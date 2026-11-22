@@ -1,6 +1,7 @@
 from enum import Enum
 
 class _Debug(Enum):
+    PRETOKENIZER = 'PRETOKENIZER'
     TOKENIZER = 'TOKENIZER'
 
 DEBUG = _Debug.TOKENIZER

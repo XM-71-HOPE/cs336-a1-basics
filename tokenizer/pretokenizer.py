@@ -187,7 +187,7 @@ class PreTokenizer:
         for chunk in res:
             final_result.extend(chunk)
 
-        if DEBUG.value == "TOKENIZER":
+        if DEBUG.value == "PRETOKENIZER":
             print(final_result)
         return final_result
 
