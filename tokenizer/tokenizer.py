@@ -59,7 +59,7 @@ class BPETokenizer:
     ) -> dict[BytesPair, int]:
         res = {}
         for pt in pretokens:
-            for (bp, count) in self._from_pretoken_to_bp_counts(pt):
+            for (bp, count) in self._from_pretoken_to_bp_counts(pt).items():
                 if res.__contains__(bp):
                     res[bp] += count
                 else:
@@ -108,8 +108,8 @@ class BPETokenizer:
                         bp_dict[bp] += count
                     else:
                         bp_dict[bp] = count
-                    if _greater(bp_dict[bp], max_bp):
-                        max_bp = bp_dict[bp]
+                    if _greater((bp, bp_dict[bp]), max_bp):
+                        max_bp = (bp, bp_dict[bp])
         return (bp_dict, max_bp)
 
     
@@ -129,4 +129,4 @@ def _greater(
 ) -> bool:
     bp_a, cnt_a = a
     bp_b, cnt_b = b
-    return True if cnt_a > cnt_b else bp_a > bp_b
+    return True if cnt_a > cnt_b else cnt_a == cnt_b and bp_a > bp_b
