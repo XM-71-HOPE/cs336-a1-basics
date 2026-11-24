@@ -7,6 +7,7 @@ from itertools import batched
 from typing import Iterable
 import os
 import time
+import logging
 
 
 class BPETokenizer:
@@ -41,8 +42,8 @@ class BPETokenizer:
         """
         if DEBUG.value == 'PROFILING':
             pretokenize_start = time.perf_counter()
-            print("Pretokenization started!")
-            
+        
+        logging.info("Pretokenization started.")
         pretokens = self.pretokenizer.pretokenize(
             input_path=input_path,
             process_nums_to_pretokenize = pretokenize_process_nums,
@@ -50,11 +51,11 @@ class BPETokenizer:
             raw_split_num=raw_text_split_num,
             split_nums_per_work=split_text_chunksize
         )
+        logging.info("Pretokenization done.")
 
         if DEBUG.value == "PROFILING":
             pretokenize_end = time.perf_counter()
-            print("time spent during pretokenization: ", end='')
-            print(pretokenize_end - pretokenize_start)
+            logging.debug(f"time spent during pretokenization: {pretokenize_end - pretokenize_start}")
 
         return self.naive_train_pretokens(
             pretokens=pretokens,
@@ -76,7 +77,8 @@ class BPETokenizer:
         while res.size() < self.vocab_size:
             if DEBUG.value == 'PROFILING':
                 round_start = time.perf_counter()
-                print("round +" + str(res.size()) + " started.")
+                logging.debug(f"round {res.size()} started")
+                # print("round +" + str(res.size()) + " started.")
             _, max_bp = self._from_pretokens_to_bp_counts(
                 pretokens=pretokens,
                 process_nums=count_bp_process_nums,
@@ -85,8 +87,9 @@ class BPETokenizer:
             )
             if DEBUG.value == 'PROFILING':
                 bp_counted = time.perf_counter()
-                print("time spent during bp counting: ", end='')
-                print(bp_counted - round_start)
+                # print("time spent during bp counting: ", end='')
+                # print(bp_counted - round_start)
+                logging.debug(f"time spent bp counting: {bp_counted - round_start}")
                 
             res.merge.append(max_bp[0])
             res.vocab[res.size()]=max_bp[0].first + max_bp[0].second
@@ -97,8 +100,9 @@ class BPETokenizer:
             )
             if DEBUG.value == 'PROFILING':
                 merged = time.perf_counter()
-                print("time spent during merging: ", end='')
-                print(merged - bp_counted)
+                # print("time spent during merging: ", end='')
+                # print(merged - bp_counted)
+                logging.debug(f"time spent merging: {merged - round_start}")
         return res
 
     def _from_pretoken_to_bp_counts(

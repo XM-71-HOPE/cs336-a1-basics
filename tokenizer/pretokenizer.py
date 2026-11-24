@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 from multiprocessing import Pool
 import os
 import regex as re
@@ -188,7 +189,8 @@ class PreTokenizer:
             final_result.extend(chunk)
 
         if DEBUG.value == "PRETOKENIZER":
-            print(final_result)
+            # print(final_result)
+            logging.debug(final_result)
         return final_result
 
     def _find_eofs_single(self, st, ed, path) -> list[tuple[int, int]]:
