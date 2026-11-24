@@ -79,11 +79,14 @@ class BPETokenizer:
                 round_start = time.perf_counter()
                 logging.debug(f"round {res.size()} started")
                 # print("round +" + str(res.size()) + " started.")
-            _, max_bp = self._from_pretokens_to_bp_counts(
-                pretokens=pretokens,
-                process_nums=count_bp_process_nums,
-                batch_size=count_bp_batch_size,
-                chunksize=count_bp_chunksize
+            # _, max_bp = self._from_pretokens_to_bp_counts(
+            #     pretokens=pretokens,
+            #     process_nums=count_bp_process_nums,
+            #     batch_size=count_bp_batch_size,
+            #     chunksize=count_bp_chunksize
+            # )
+            _, max_bp = self._from_pretokens_to_bp_counts_single_with_max(
+                pretokens = pretokens.items()
             )
             if DEBUG.value == 'PROFILING':
                 bp_counted = time.perf_counter()
@@ -93,16 +96,21 @@ class BPETokenizer:
                 
             res.merge.append(max_bp[0])
             res.vocab[res.size()]=max_bp[0].first + max_bp[0].second
-            pretokens = self._apply_merge_to_pretokens_naive(
-                max_bp[0],
-                pretokens,
-                apply_merge_process_nums
-            )
+            # pretokens = self._apply_merge_to_pretokens_naive(
+            #     max_bp[0],
+            #     pretokens,
+            #     apply_merge_process_nums
+            # )
+
+            # bro you know what this actually runs way faster
+            pretokens = dict(self._apply_merge_to_pretokens_naive_single(
+                (max_bp[0], pretokens.items())
+            ))
             if DEBUG.value == 'PROFILING':
                 merged = time.perf_counter()
                 # print("time spent during merging: ", end='')
                 # print(merged - bp_counted)
-                logging.debug(f"time spent merging: {merged - round_start}")
+                logging.debug(f"time spent merging: {merged - bp_counted}")
         return res
 
     def _from_pretoken_to_bp_counts(
@@ -133,6 +141,22 @@ class BPETokenizer:
                 else:
                     res[bp] = count
         return res
+
+    def _from_pretokens_to_bp_counts_single_with_max(
+        self,
+        pretokens: Iterable[tuple[tuple[bytes, ...], int]]
+    ) -> tuple[dict[BytesPair, int], tuple[BytesPair, int]]:
+        res = {}
+        max_bp = (BytesPair(b'', b''), 0)
+        for pt in pretokens:
+            for (bp, count) in self._from_pretoken_to_bp_counts(pt).items():
+                if res.__contains__(bp):
+                    res[bp] += count
+                else:
+                    res[bp] = count
+                if _greater((bp, res[bp]), max_bp):
+                    max_bp = ((bp, res[bp]))
+        return (res, max_bp)
 
     def _from_pretokens_to_bp_counts(
         self,

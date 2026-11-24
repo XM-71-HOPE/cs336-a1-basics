@@ -174,3 +174,6 @@ sandbox.py
 # see logging related code
 *.log
 log/
+
+# Results
+results/

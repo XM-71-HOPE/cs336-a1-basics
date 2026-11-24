@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from constants import LOG_PATH_RELATIVE
+from utils.constants import LOG_PATH_RELATIVE
 import time
 
 
