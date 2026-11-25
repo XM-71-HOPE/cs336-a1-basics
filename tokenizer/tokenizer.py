@@ -154,6 +154,22 @@ class BPETokenizer:
                     res[bp] = count
         return res
 
+    # def _from_pretokens_to_bp_counts_single_with_max(
+    #     self,
+    #     pretokens: Iterable[tuple[tuple[bytes, ...], int]]
+    # ) -> tuple[dict[BytesPair, int], tuple[BytesPair, int]]:
+    #     res = {}
+    #     max_bp = (BytesPair(b'', b''), 0)
+    #     for pt in pretokens:
+    #         for (bp, count) in self._from_pretoken_to_bp_counts(pt).items():
+    #             if res.__contains__(bp):
+    #                 res[bp] += count
+    #             else:
+    #                 res[bp] = count
+    #             if _greater((bp, res[bp]), max_bp):
+    #                 max_bp = ((bp, res[bp]))
+    #     return (res, max_bp)
+
     def _from_pretokens_to_bp_counts_single_with_max(
         self,
         pretokens: Iterable[tuple[tuple[bytes, ...], int]]
@@ -161,11 +177,14 @@ class BPETokenizer:
         res = {}
         max_bp = (BytesPair(b'', b''), 0)
         for pt in pretokens:
-            for (bp, count) in self._from_pretoken_to_bp_counts(pt).items():
+            word, pt_count = pt
+            L = len(word)
+            for i in range(L - 1):
+                bp = BytesPair(word[i], word[i+1])
                 if res.__contains__(bp):
-                    res[bp] += count
+                    res[bp] += pt_count
                 else:
-                    res[bp] = count
+                    res[bp] = pt_count
                 if _greater((bp, res[bp]), max_bp):
                     max_bp = ((bp, res[bp]))
         return (res, max_bp)
