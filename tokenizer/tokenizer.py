@@ -77,7 +77,7 @@ class BPETokenizer:
         while res.size() < self.vocab_size:
             if DEBUG.value == 'PROFILING':
                 round_start = time.perf_counter()
-                logging.debug(f"round {res.size()} started")
+                logging.debug(f"round {res.size()+1} started")
                 # print("round +" + str(res.size()) + " started.")
             # _, max_bp = self._from_pretokens_to_bp_counts(
             #     pretokens=pretokens,
