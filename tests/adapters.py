@@ -9,6 +9,8 @@ import torch
 from jaxtyping import Bool, Float, Int
 from torch import Tensor
 
+from tokenizer.tokenizer import BPETokenizer, Tokenized
+
 
 def run_linear(
     d_in: int,
@@ -589,4 +591,21 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    raise NotImplementedError
+    bpe_tokenizer = BPETokenizer()
+    bpe_tokenizer.naive_train(
+        input_path=input_path, # type: ignore
+        vocab_size=vocab_size,
+        special_tokens=special_tokens,
+        pretokenize_process_nums=16,
+        raw_text_split_num=64,
+        split_text_chunksize=4,
+    )
+    tknzd = bpe_tokenizer.tokenized
+    assert type(tknzd) == Tokenized
+    vocab = tknzd.vocab
+    BP_merge = tknzd.merge
+    merge = []
+    for bp in BP_merge:
+        merge.append((bp.first, bp.second))
+    res = (vocab, merge)
+    return res
