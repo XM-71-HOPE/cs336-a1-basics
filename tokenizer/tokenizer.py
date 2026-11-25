@@ -185,8 +185,9 @@ class BPETokenizer:
                     res[bp] += pt_count
                 else:
                     res[bp] = pt_count
-                if _greater((bp, res[bp]), max_bp):
-                    max_bp = ((bp, res[bp]))
+        for (bp, pt_count) in res.items():
+            if _greater((bp, res[bp]), max_bp):
+                max_bp = ((bp, res[bp]))
         return (res, max_bp)
 
     def _from_pretokens_to_bp_counts(
