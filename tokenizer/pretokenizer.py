@@ -95,10 +95,13 @@ class PreTokenizer:
             input,
         )
         for _match in iter:
-            chunk = _match.group()
+            # chunk = _match.group()
+            chunk = _match.group().encode()
             chars = []
             for i in range(len(chunk)):
-                chars.append(chunk[i:i+1].encode("utf-8"))
+                # chars.append(chunk[i].encode("utf-8"))
+                chars.append(chunk[i:i+1])
+                pass
             chars = tuple(chars)
 
             if res.__contains__(chars):

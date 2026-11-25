@@ -283,7 +283,7 @@ class BPETokenizer:
             vocab[i] = bytes([i])
 
         for i in range(len(special_tokens_encoded)):
-            vocab[i+256] = special_tokens_encoded
+            vocab[i+256] = special_tokens_encoded[i]
         return vocab
 
 class Tokenized(NamedTuple):
