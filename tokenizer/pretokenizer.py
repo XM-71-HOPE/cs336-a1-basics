@@ -32,7 +32,7 @@ class PreTokenizer:
         process_nums_to_split_text: int = 1,
         raw_split_num: int = 1,
         split_nums_per_work: int | None = None
-    ) -> dict[tuple[bytes, ...], int]:
+    ) -> dict[PreToken, int]:
         return self._pretokenize_splits(
             input_path=input_path,
             process_nums_to_pretokenize=process_nums_to_pretokenize,
@@ -43,14 +43,13 @@ class PreTokenizer:
                 split_nums_per_work=split_nums_per_work
             )
         )
-        raise NotImplementedError
 
     def _pretokenize_splits(
             self, 
             input_path: str,
             splits: list[tuple[int, int]],
             process_nums_to_pretokenize: int = 1,
-                     ) -> dict[tuple[bytes, ...], int]:
+                     ) -> dict[PreToken, int]:
         """pretokenizes the input files with splits, returns an dict on 'word counts'"""
 
         def _generate_tasks() -> list[tuple[str, tuple[int, int]]]:
@@ -79,7 +78,7 @@ class PreTokenizer:
     def _pretokenize_single_sentence(
         self,
         input: str,
-    ) -> dict[tuple[bytes, ...], int]:
+    ) -> dict[PreToken, int]:
         """
         Pre-tokenizes a raw sentence according to self.pattern
 
@@ -87,7 +86,7 @@ class PreTokenizer:
             input: the input string to pre-tokenize
         
         Returns:
-            dict[tuple[bytes, ...], int] representing the pre-tokens in the tuple of the characters and the word count
+            dict[PreToken, int] representing the pre-tokens in the tuple of the characters and the word count
         """
         res = {}
         iter = re.finditer(
@@ -113,7 +112,7 @@ class PreTokenizer:
     def _pretokenize_single_split(
         self,
         params: tuple[str, tuple[int, int]]
-    ) -> dict[tuple[bytes, ...], int]:
+    ) -> dict[PreToken, int]:
         file, split = params 
         st, ed = split
         if st<0:
@@ -245,3 +244,6 @@ class PreTokenizer:
                 split_nums_per_work=split_nums_per_work
             )
         )
+
+type PreToken = tuple[bytes, ...]
+type PreTokenCount = tuple[PreToken, int]

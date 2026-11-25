@@ -3,7 +3,7 @@ from typing import NamedTuple
 from multiprocessing import Pool
 from utils import io_utils
 from utils.constants import DEBUG, REGEX_PATTERN
-from tokenizer.pretokenizer import PreTokenizer
+from tokenizer.pretokenizer import PreToken, PreTokenCount, PreTokenizer
 from itertools import batched
 from typing import Iterable
 import os
@@ -63,7 +63,7 @@ class BPETokenizer:
 
     def naive_train_pretokens(
         self,
-        pretokens: dict[tuple[bytes, ...], int],
+        pretokens: dict[PreToken, int],
         vocab_size: int = 10000,
         special_tokens: list[str] = ["<|endoftext|>"],
         # count_bp_process_nums: int = 1,
@@ -130,9 +130,9 @@ class BPETokenizer:
 
     def _from_pretoken_to_bp_counts(
         self,
-        pretoken: tuple[tuple[bytes, ...], int] 
+        pretoken: PreTokenCount 
     ) -> dict[BytesPair, int]:
-        """converts the pretoken in tuple[tuple[bytes, ...], int] form into bytes pairs and its total counts"""
+        """converts the pretoken in PreTokenCount form into bytes pairs and its total counts"""
         word, pt_count = pretoken
         res = {}
         L = len(word)
@@ -146,7 +146,7 @@ class BPETokenizer:
 
     def _from_pretokens_to_bp_counts_single(
         self,
-        pretokens: Iterable[tuple[tuple[bytes, ...], int]]
+        pretokens: Iterable[PreTokenCount]
     ) -> dict[BytesPair, int]:
         res = {}
         for pt in pretokens:
@@ -159,8 +159,8 @@ class BPETokenizer:
 
     def _from_pretokens_to_bp_counts_single_with_max(
         self,
-        pretokens: Iterable[tuple[tuple[bytes, ...], int]]
-    ) -> tuple[dict[BytesPair, list[tuple[tuple[bytes, ...], int]]], tuple[BytesPair, int]]:
+        pretokens: Iterable[PreTokenCount]
+    ) -> tuple[dict[BytesPair, list[PreTokenCount]], tuple[BytesPair, int]]:
         """
         count bp counts, also returning a dict from bp to pretokens
         """
@@ -190,7 +190,7 @@ class BPETokenizer:
 
     def _from_pretokens_to_bp_counts(
         self,
-        pretokens: dict[tuple[bytes, ...], int],
+        pretokens: dict[PreToken, int],
         process_nums : int = 1,
         batch_size : int = 256,
         chunksize: int | None = None
@@ -236,8 +236,8 @@ class BPETokenizer:
 
     def _apply_merge_to_pretoken_naive(
         self,
-        params: tuple[BytesPair, tuple[tuple[bytes, ...], int]]
-    ) -> tuple[tuple[bytes, ...], int]:
+        params: tuple[BytesPair, PreTokenCount]
+    ) -> PreTokenCount:
         """apply a merge to a pretoken"""
         bp_to_merge, pretoken = params
         word, count = pretoken
@@ -255,8 +255,8 @@ class BPETokenizer:
 
     def _apply_merge_to_pretokens_naive_single(
         self,
-        params: tuple[BytesPair, Iterable[tuple[tuple[bytes, ...], int]]]
-    ) -> Iterable[tuple[tuple[bytes, ...], int]]:
+        params: tuple[BytesPair, Iterable[PreTokenCount]]
+    ) -> Iterable[PreTokenCount]:
         bp_to_merge, pretokens = params
         res = []
         for pt in pretokens:
@@ -269,8 +269,8 @@ class BPETokenizer:
         self,
         params: tuple[
             BytesPair, 
-            dict[tuple[bytes, ...], int],
-            Iterable[tuple[tuple[bytes, ...], int]]
+            dict[PreToken, int],
+            Iterable[PreTokenCount]
         ]
     ):
         bp_to_merge, pretokens, pts_to_merge = params
@@ -286,11 +286,11 @@ class BPETokenizer:
     def _apply_merge_to_pretokens_naive(
         self,
         bp_to_merge: BytesPair,
-        pretokens: dict[tuple[bytes, ...], int],
+        pretokens: dict[PreToken, int],
         process_nums: int = 1
-    ) -> dict[tuple[bytes, ...], int]:
+    ) -> dict[PreToken, int]:
         res = {}
-        def _generate_tasks() -> list[tuple[BytesPair, Iterable[tuple[tuple[bytes, ...], int]]]]:
+        def _generate_tasks() -> list[tuple[BytesPair, Iterable[PreTokenCount]]]:
             tasks = []
             batch_size = (len(pretokens) - 1)//process_nums + 1     # ceil
             batches = batched(
