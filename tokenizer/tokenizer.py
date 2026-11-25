@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import NamedTuple
 from multiprocessing import Pool
+from utils import io_utils
 from utils.constants import DEBUG, REGEX_PATTERN
 from tokenizer.pretokenizer import PreTokenizer
 from itertools import batched
@@ -13,38 +14,34 @@ import logging
 class BPETokenizer:
     def __init__(
         self: BPETokenizer,
-        vocab_size: int,
-        special_tokens: list[str],
-        pre_tokenize_pattern: str = REGEX_PATTERN
     ):
-        self.vocab_size = vocab_size
-        self.special_tokens = special_tokens
-        self.special_tokens_encoded = [s.encode() for s in special_tokens]
-        self.pretokenizer = PreTokenizer(
-            pattern=pre_tokenize_pattern,
-            special_tokens=special_tokens
-        )
+        self.tokenized = None
 
     def naive_train(
         self: BPETokenizer,
         input_path: str,
+        vocab_size: int = 10000,
+        special_tokens: list[str] = ["<|endoftext|>"],
+        pretokenize_pattern: str = REGEX_PATTERN,
         pretokenize_process_nums: int = 1,
         split_text_process_nums: int = 1,
         raw_text_split_num: int = 1,
         split_text_chunksize: int | None = None,
-        count_bp_process_nums: int = 1,
-        count_bp_batch_size: int = 256,
-        count_bp_chunksize: int = 1,
-        apply_merge_process_nums: int = 1
     ) -> Tokenized:
         """
         Tokenize the input .txt file
+        returns the Tokenized object, also saves to self.tokenized
+        currently the implementation after the pretokenization is single-threaded
         """
         if DEBUG.value == 'PROFILING':
             pretokenize_start = time.perf_counter()
-        
         logging.info("Pretokenization started.")
-        pretokens = self.pretokenizer.pretokenize(
+        # special_tokens_encoded = [s.encode() for s in special_tokens]
+        pretokenizer = PreTokenizer(
+            pretokenize_pattern,
+            special_tokens
+        )
+        pretokens = pretokenizer.pretokenize(
             input_path=input_path,
             process_nums_to_pretokenize = pretokenize_process_nums,
             process_nums_to_split_text = split_text_process_nums,
@@ -57,61 +54,76 @@ class BPETokenizer:
             pretokenize_end = time.perf_counter()
             logging.debug(f"time spent during pretokenization: {pretokenize_end - pretokenize_start}")
 
-        return self.naive_train_pretokens(
+        self.tokenized = self.naive_train_pretokens(
             pretokens=pretokens,
-            count_bp_process_nums=count_bp_process_nums,
-            count_bp_batch_size=count_bp_batch_size,
-            count_bp_chunksize=count_bp_chunksize,
-            apply_merge_process_nums=apply_merge_process_nums
+            vocab_size = vocab_size,
         )
+
+        return self.tokenized
 
     def naive_train_pretokens(
         self,
         pretokens: dict[tuple[bytes, ...], int],
-        count_bp_process_nums: int = 1,
-        count_bp_batch_size: int = 1,
-        count_bp_chunksize: int = 256,
-        apply_merge_process_nums: int = 1
+        vocab_size: int = 10000,
+        special_tokens: list[str] = ["<|endoftext|>"],
+        # count_bp_process_nums: int = 1,
+        # count_bp_batch_size: int = 1,
+        # count_bp_chunksize: int = 256,
+        # apply_merge_process_nums: int = 1
     ) -> Tokenized:
-        res = Tokenized(self._initialize_vocab(), [])
-        while res.size() < self.vocab_size:
+        """train from given pretokens, does not save the Tokenized object to self.tokenized"""
+        special_tokens_encoded = [s.encode() for s in special_tokens]
+        res = Tokenized(self._initialize_vocab(special_tokens_encoded=special_tokens_encoded), [])
+        while res.size() < vocab_size:
             if DEBUG.value == 'PROFILING':
                 round_start = time.perf_counter()
                 logging.debug(f"round {res.size()+1} started")
-                # print("round +" + str(res.size()) + " started.")
+            
+            # bro you know what single process is actually way faster
+
             # _, max_bp = self._from_pretokens_to_bp_counts(
             #     pretokens=pretokens,
             #     process_nums=count_bp_process_nums,
             #     batch_size=count_bp_batch_size,
             #     chunksize=count_bp_chunksize
             # )
+
             _, max_bp = self._from_pretokens_to_bp_counts_single_with_max(
                 pretokens = pretokens.items()
             )
             if DEBUG.value == 'PROFILING':
                 bp_counted = time.perf_counter()
-                # print("time spent during bp counting: ", end='')
-                # print(bp_counted - round_start)
                 logging.debug(f"time spent bp counting: {bp_counted - round_start}")
                 
             res.merge.append(max_bp[0])
             res.vocab[res.size()]=max_bp[0].first + max_bp[0].second
+
             # pretokens = self._apply_merge_to_pretokens_naive(
             #     max_bp[0],
             #     pretokens,
             #     apply_merge_process_nums
             # )
 
-            # bro you know what this actually runs way faster
             pretokens = dict(self._apply_merge_to_pretokens_naive_single(
                 (max_bp[0], pretokens.items())
             ))
             if DEBUG.value == 'PROFILING':
                 merged = time.perf_counter()
-                # print("time spent during merging: ", end='')
-                # print(merged - bp_counted)
                 logging.debug(f"time spent merging: {merged - bp_counted}")
+            
         return res
+
+    def read_tokenized_from_pkl(
+        self,
+        input_path: str,
+    ) -> Tokenized:
+        """read from the Tokenized .pkl file and write it into self.tokenized"""
+        self.tokenized = io_utils.load_from_file(
+            input_path
+        )
+        if type(self.tokenized) != Tokenized:
+            raise TypeError(f"{input_path} is not a pickle of Tokenized")
+        return self.tokenized
 
     def _from_pretoken_to_bp_counts(
         self,
@@ -262,13 +274,16 @@ class BPETokenizer:
                     res[pt[0]] = pt[1]
         return res
 
-    def _initialize_vocab(self) -> dict[int, bytes]:
+    def _initialize_vocab(
+        self,
+        special_tokens_encoded: list[bytes]
+    ) -> dict[int, bytes]:
         vocab = {}
         for i in range(256):
             vocab[i] = bytes([i])
 
-        for i in range(len(self.special_tokens_encoded)):
-            vocab[i+256] = self.special_tokens_encoded
+        for i in range(len(special_tokens_encoded)):
+            vocab[i+256] = special_tokens_encoded
         return vocab
 
 class Tokenized(NamedTuple):
