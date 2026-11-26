@@ -18,11 +18,21 @@ logging.basicConfig(
 tokenizer = BPETokenizer(
 )
 
-input_path = "../data/TinyStoriesV2-GPT4-valid.txt"
-# input_path = "../data/TinyStoriesV2-GPT4-train.txt"
+# input_path = "../data/TinyStoriesV2-GPT4-valid.txt"
+input_path = "../data/TinyStoriesV2-GPT4-train.txt"
 # input_path = "../data/tmp.txt"
 
-tokenized = tokenizer.naive_train(
+# tokenized = tokenizer.naive_train(
+#     input_path=input_path,
+#     vocab_size = 1600,
+#     special_tokens = ['<|endoftext|>'],
+#     pretokenize_pattern=constants.REGEX_PATTERN,
+#     pretokenize_process_nums=16,
+#     raw_text_split_num=64,
+#     split_text_chunksize=4,
+# )
+
+tokenized = tokenizer.perf_train(
     input_path=input_path,
     vocab_size = 1600,
     special_tokens = ['<|endoftext|>'],
@@ -33,7 +43,7 @@ tokenized = tokenizer.naive_train(
 )
 
 io_utils.serialize_to_file(
-    filename="../results/tokenized_test.pkl",
+    filename="../results/tokenized_tinystories.pkl",
     object=tokenized,
     force=False
 )

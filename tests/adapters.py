@@ -592,7 +592,7 @@ def run_train_bpe(
                 Merges are ordered by order of creation.
     """
     bpe_tokenizer = BPETokenizer()
-    bpe_tokenizer.naive_train(
+    bpe_tokenizer.perf_train(
         input_path=input_path, # type: ignore
         vocab_size=vocab_size,
         special_tokens=special_tokens,

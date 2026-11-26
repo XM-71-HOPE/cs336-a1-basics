@@ -33,33 +33,119 @@ class BPETokenizer:
         returns the Tokenized object, also saves to self.tokenized
         currently the implementation after the pretokenization is single-threaded
         """
-        if DEBUG.value == 'PROFILING':
+        if DEBUG.value == "PROFILING":
             pretokenize_start = time.perf_counter()
         logging.info("Pretokenization started.")
         # special_tokens_encoded = [s.encode() for s in special_tokens]
-        pretokenizer = PreTokenizer(
-            pretokenize_pattern,
-            special_tokens
-        )
+        pretokenizer = PreTokenizer(pretokenize_pattern, special_tokens)
         pretokens = pretokenizer.pretokenize(
             input_path=input_path,
-            process_nums_to_pretokenize = pretokenize_process_nums,
-            process_nums_to_split_text = split_text_process_nums,
+            process_nums_to_pretokenize=pretokenize_process_nums,
+            process_nums_to_split_text=split_text_process_nums,
             raw_split_num=raw_text_split_num,
-            split_nums_per_work=split_text_chunksize
+            split_nums_per_work=split_text_chunksize,
         )
         logging.info("Pretokenization done.")
 
         if DEBUG.value == "PROFILING":
             pretokenize_end = time.perf_counter()
-            logging.debug(f"time spent during pretokenization: {pretokenize_end - pretokenize_start}")
+            logging.debug(
+                f"time spent during pretokenization: {pretokenize_end - pretokenize_start}"
+            )
 
         self.tokenized = self.naive_train_pretokens(
             pretokens=pretokens,
-            vocab_size = vocab_size,
+            vocab_size=vocab_size,
         )
 
         return self.tokenized
+
+    def perf_train(
+        self: BPETokenizer,
+        input_path: str,
+        vocab_size: int = 10000,
+        special_tokens: list[str] = ["<|endoftext|>"],
+        pretokenize_pattern: str = REGEX_PATTERN,
+        pretokenize_process_nums: int = 1,
+        split_text_process_nums: int = 1,
+        raw_text_split_num: int = 1,
+        split_text_chunksize: int | None = None,
+    ) -> Tokenized:
+        """
+        Tokenize the input .txt file
+        returns the Tokenized object, also saves to self.tokenized
+        currently the implementation after the pretokenization is single-threaded
+        """
+
+        if DEBUG.value == "PROFILING":
+            pretokenize_start = time.perf_counter()
+
+        logging.info("Pretokenization started.")
+
+        pretokenizer = PreTokenizer(pretokenize_pattern, special_tokens)
+        pretokens = pretokenizer.pretokenize(
+            input_path=input_path,
+            process_nums_to_pretokenize=pretokenize_process_nums,
+            process_nums_to_split_text=split_text_process_nums,
+            raw_split_num=raw_text_split_num,
+            split_nums_per_work=split_text_chunksize,
+        )
+
+        logging.info("Pretokenization done.")
+
+        if DEBUG.value == "PROFILING":
+            pretokenize_end = time.perf_counter()
+            logging.debug(
+                f"time spent during pretokenization: {pretokenize_end - pretokenize_start}"
+            )
+
+        self.tokenized = self.perf_train_pretokens(
+            pretokens=pretokens,
+            vocab_size=vocab_size,
+        )
+
+        return self.tokenized
+
+    def perf_train_pretokens(
+        self,
+        pretokens: dict[PreToken, int],
+        vocab_size: int = 10000,
+        special_tokens: list[str] = ["<|endoftext|>"],
+    ) -> Tokenized:
+        special_tokens_encoded = [s.encode() for s in special_tokens]
+        res = Tokenized(
+            self._initialize_vocab(special_tokens_encoded=special_tokens_encoded), []
+        )
+        bp_dict = self._initialize_bp_dict(pretokens)
+
+        while res.size() < vocab_size:
+
+            if DEBUG.value == "PROFILING":
+                round_start = time.perf_counter()
+                logging.debug(f"round {res.size()+1} started")
+
+            max_bp = self._from_pretokens_to_max_bp_single(
+                pretokens=pretokens.items()
+            )[0]
+
+            if DEBUG.value == "PROFILING":
+                bp_counted = time.perf_counter()
+                logging.debug(f"time spent bp counting: {bp_counted - round_start}")
+
+            res.merge.append(max_bp)
+            res.vocab[res.size()] = max_bp.first+max_bp.second
+
+            self._apply_merge_perf(
+                max_bp,
+                pretokens,
+                bp_dict
+            )
+
+            if DEBUG.value == "PROFILING":
+                merged = time.perf_counter()
+                logging.debug(f"time spent merging: {merged - bp_counted}")
+
+        return res
 
     def naive_train_pretokens(
         self,
@@ -73,12 +159,14 @@ class BPETokenizer:
     ) -> Tokenized:
         """train from given pretokens, does not save the Tokenized object to self.tokenized"""
         special_tokens_encoded = [s.encode() for s in special_tokens]
-        res = Tokenized(self._initialize_vocab(special_tokens_encoded=special_tokens_encoded), [])
+        res = Tokenized(
+            self._initialize_vocab(special_tokens_encoded=special_tokens_encoded), []
+        )
         while res.size() < vocab_size:
-            if DEBUG.value == 'PROFILING':
+            if DEBUG.value == "PROFILING":
                 round_start = time.perf_counter()
                 logging.debug(f"round {res.size()+1} started")
-            
+
             # bro you know what single process is actually way faster
 
             # _, max_bp = self._from_pretokens_to_bp_counts(
@@ -89,14 +177,14 @@ class BPETokenizer:
             # )
 
             bp_dict, max_bp = self._from_pretokens_to_bp_counts_single_with_max(
-                pretokens = pretokens.items()
+                pretokens=pretokens.items()
             )
-            if DEBUG.value == 'PROFILING':
+            if DEBUG.value == "PROFILING":
                 bp_counted = time.perf_counter()
                 logging.debug(f"time spent bp counting: {bp_counted - round_start}")
-                
+
             res.merge.append(max_bp[0])
-            res.vocab[res.size()]=max_bp[0].first + max_bp[0].second
+            res.vocab[res.size()] = max_bp[0].first + max_bp[0].second
 
             # pretokens = self._apply_merge_to_pretokens_naive(
             #     max_bp[0],
@@ -110,10 +198,10 @@ class BPETokenizer:
             self._apply_merge_to_pretokens_targeted_single(
                 (max_bp[0], pretokens, bp_dict[max_bp[0]])
             )
-            if DEBUG.value == 'PROFILING':
+            if DEBUG.value == "PROFILING":
                 merged = time.perf_counter()
                 logging.debug(f"time spent merging: {merged - bp_counted}")
-            
+
         return res
 
     def read_tokenized_from_pkl(
@@ -121,23 +209,20 @@ class BPETokenizer:
         input_path: str,
     ) -> Tokenized:
         """read from the Tokenized .pkl file and write it into self.tokenized"""
-        self.tokenized = io_utils.load_from_file(
-            input_path
-        )
+        self.tokenized = io_utils.load_from_file(input_path)
         if type(self.tokenized) != Tokenized:
             raise TypeError(f"{input_path} is not a pickle of Tokenized")
         return self.tokenized
 
     def _from_pretoken_to_bp_counts(
-        self,
-        pretoken: PreTokenCount 
+        self, pretoken: PreTokenCount
     ) -> dict[BytesPair, int]:
         """converts the pretoken in PreTokenCount form into bytes pairs and its total counts"""
         word, pt_count = pretoken
         res = {}
         L = len(word)
         for i in range(L - 1):
-            bp = BytesPair(word[i], word[i+1])
+            bp = BytesPair(word[i], word[i + 1])
             if res.__contains__(bp):
                 res[bp] += pt_count
             else:
@@ -145,12 +230,11 @@ class BPETokenizer:
         return res
 
     def _from_pretokens_to_bp_counts_single(
-        self,
-        pretokens: Iterable[PreTokenCount]
+        self, pretokens: Iterable[PreTokenCount]
     ) -> dict[BytesPair, int]:
         res = {}
         for pt in pretokens:
-            for (bp, count) in self._from_pretoken_to_bp_counts(pt).items():
+            for bp, count in self._from_pretoken_to_bp_counts(pt).items():
                 if res.__contains__(bp):
                     res[bp] += count
                 else:
@@ -158,20 +242,19 @@ class BPETokenizer:
         return res
 
     def _from_pretokens_to_bp_counts_single_with_max(
-        self,
-        pretokens: Iterable[PreTokenCount]
+        self, pretokens: Iterable[PreTokenCount]
     ) -> tuple[dict[BytesPair, list[PreTokenCount]], tuple[BytesPair, int]]:
         """
         count bp counts, also returning a dict from bp to pretokens
         """
         bp_counts = {}
         bp_dict = {}
-        max_bp = (BytesPair(b'', b''), 0)
+        max_bp = (BytesPair(b"", b""), 0)
         for pt in pretokens:
             word, pt_count = pt
             L = len(word)
             for i in range(L - 1):
-                bp = BytesPair(word[i], word[i+1])
+                bp = BytesPair(word[i], word[i + 1])
                 if bp_counts.__contains__(bp):
                     bp_counts[bp] += pt_count
                 else:
@@ -179,21 +262,43 @@ class BPETokenizer:
                 if not bp_dict.__contains__(bp):
                     bp_dict[bp] = []
                 ls = bp_dict[bp]
-                if len(ls)>=1 and ls[-1]==pt:
+                if len(ls) >= 1 and ls[-1] == pt:
                     continue
                 ls.append(pt)
-                
-        for (bp, pt_count) in bp_counts.items():
+
+        for bp, pt_count in bp_counts.items():
             if _greater((bp, bp_counts[bp]), max_bp):
-                max_bp = ((bp, bp_counts[bp]))
+                max_bp = (bp, bp_counts[bp])
         return (bp_dict, max_bp)
+
+    def _from_pretokens_to_max_bp_single(
+        self, pretokens: Iterable[PreTokenCount]
+    ) -> tuple[BytesPair, int]:
+        """
+        find the max bp in the pretokens
+        """
+        bp_counts = {}
+        max_bp = (BytesPair(b"", b""), 0)
+        for pt in pretokens:
+            word, pt_count = pt
+            L = len(word)
+            for i in range(L - 1):
+                bp = BytesPair(word[i], word[i + 1])
+                if bp_counts.__contains__(bp):
+                    bp_counts[bp] += pt_count
+                else:
+                    bp_counts[bp] = pt_count
+        for bp, pt_count in bp_counts.items():
+            if _greater((bp, bp_counts[bp]), max_bp):
+                max_bp = (bp, bp_counts[bp])
+        return max_bp
 
     def _from_pretokens_to_bp_counts(
         self,
         pretokens: dict[PreToken, int],
-        process_nums : int = 1,
-        batch_size : int = 256,
-        chunksize: int | None = None
+        process_nums: int = 1,
+        batch_size: int = 256,
+        chunksize: int | None = None,
     ) -> tuple[dict[BytesPair, int], tuple[BytesPair, int]]:
         """
         computes the bp counts for a pretoken dictionary
@@ -203,29 +308,26 @@ class BPETokenizer:
             process_nums: the number of workers to process the pretokens in parallel
             batch_size: the number of pretokens in one task,
             chunksize: the number of batches per work
-        
+
         Returns:
             a tuple of:
             dict[BytesPair, int]: a dict from bytes pair to the counts of occurrence
             tuple[BytesPair, int]: the BytesPair to merge
         """
         bp_dict = {}
-        max_bp = (BytesPair(b'', b''), 0)
+        max_bp = (BytesPair(b"", b""), 0)
         N = len(pretokens)
+
         # batch_nums = (N - 1) // batch_size + 1     # ceil(N / batch_size)
         def _generate_tasks():
-            return batched(
-                iterable = pretokens.items(),
-                n = batch_size
-            )
+            return batched(iterable=pretokens.items(), n=batch_size)
+
         tasks = _generate_tasks()
-        with Pool(processes = process_nums) as pool:
+        with Pool(processes=process_nums) as pool:
             for task_count_dict in pool.imap_unordered(
-                self._from_pretokens_to_bp_counts_single,
-                tasks,
-                chunksize=chunksize
+                self._from_pretokens_to_bp_counts_single, tasks, chunksize=chunksize
             ):
-                for (bp, count) in task_count_dict.items():
+                for bp, count in task_count_dict.items():
                     if bp_dict.__contains__(bp):
                         bp_dict[bp] += count
                     else:
@@ -235,8 +337,7 @@ class BPETokenizer:
         return (bp_dict, max_bp)
 
     def _apply_merge_to_pretoken_naive(
-        self,
-        params: tuple[BytesPair, PreTokenCount]
+        self, params: tuple[BytesPair, PreTokenCount]
     ) -> PreTokenCount:
         """apply a merge to a pretoken"""
         bp_to_merge, pretoken = params
@@ -244,98 +345,130 @@ class BPETokenizer:
         new_word = []
         i = 0
         while i < len(word):
-            if i < len(word) - 1 and (word[i], word[i+1]) == bp_to_merge:
+            if i < len(word) - 1 and (word[i], word[i + 1]) == bp_to_merge:
                 new_word.append(bp_to_merge.first + bp_to_merge.second)
-                i+=2        # skips the merged bytes
-                continue    
+                i += 2  # skips the merged bytes
+                continue
             new_word.append(word[i])
-            i+=1
-        
+            i += 1
+
         return (tuple(new_word), count)
 
     def _apply_merge_to_pretokens_naive_single(
-        self,
-        params: tuple[BytesPair, Iterable[PreTokenCount]]
+        self, params: tuple[BytesPair, Iterable[PreTokenCount]]
     ) -> Iterable[PreTokenCount]:
         bp_to_merge, pretokens = params
         res = []
         for pt in pretokens:
-            res.append(self._apply_merge_to_pretoken_naive(
-                (bp_to_merge, pt)
-            ))
+            res.append(self._apply_merge_to_pretoken_naive((bp_to_merge, pt)))
         return res
 
     def _apply_merge_to_pretokens_targeted_single(
-        self,
-        params: tuple[
-            BytesPair, 
-            dict[PreToken, int],
-            Iterable[PreTokenCount]
-        ]
+        self, params: tuple[BytesPair, dict[PreToken, int], Iterable[PreTokenCount]]
     ):
         bp_to_merge, pretokens, pts_to_merge = params
         res = []
         for pt in pts_to_merge:
             del pretokens[pt[0]]
-            new_pt = self._apply_merge_to_pretoken_naive(
-                (bp_to_merge, pt)
-            )
+            new_pt = self._apply_merge_to_pretoken_naive((bp_to_merge, pt))
             pretokens[new_pt[0]] = new_pt[1]
-        return 
+        return
 
     def _apply_merge_to_pretokens_naive(
         self,
         bp_to_merge: BytesPair,
         pretokens: dict[PreToken, int],
-        process_nums: int = 1
+        process_nums: int = 1,
     ) -> dict[PreToken, int]:
         res = {}
+
         def _generate_tasks() -> list[tuple[BytesPair, Iterable[PreTokenCount]]]:
             tasks = []
-            batch_size = (len(pretokens) - 1)//process_nums + 1     # ceil
-            batches = batched(
-                iterable = pretokens.items(),
-                n = batch_size
-            )
+            batch_size = (len(pretokens) - 1) // process_nums + 1  # ceil
+            batches = batched(iterable=pretokens.items(), n=batch_size)
             for batch in batches:
                 tasks.append((bp_to_merge, batch))
             return tasks
+
         tasks = _generate_tasks()
         with Pool(processes=process_nums) as pool:
             for new_pretokens in pool.imap_unordered(
-                self._apply_merge_to_pretokens_naive_single,
-                tasks
+                self._apply_merge_to_pretokens_naive_single, tasks
             ):
                 for pt in new_pretokens:
                     res[pt[0]] = pt[1]
         return res
 
     def _initialize_vocab(
-        self,
-        special_tokens_encoded: list[bytes]
+        self, special_tokens_encoded: list[bytes]
     ) -> dict[int, bytes]:
         vocab = {}
         for i in range(256):
             vocab[i] = bytes([i])
 
         for i in range(len(special_tokens_encoded)):
-            vocab[i+256] = special_tokens_encoded[i]
+            vocab[i + 256] = special_tokens_encoded[i]
         return vocab
+
+    def _initialize_bp_dict(
+        self,
+        pretokens: dict[PreToken, int],
+    ) -> dict[BytesPair, set[PreToken]]:
+        bp_dict = {}
+        for pt in pretokens:
+            for i in range(len(pt) - 1):
+                bp = BytesPair(pt[i], pt[i+1])
+                if not bp_dict.__contains__(bp):
+                    bp_dict[bp] = set()
+                bp_dict[bp].add(pt)
+        return bp_dict
+
+    def _apply_merge_perf(
+        self,
+        bp_to_merge: BytesPair,
+        pretokens: dict[PreToken, int],
+        bp_dict: dict[BytesPair, set[PreToken]]
+    ):
+        pts_to_merge = tuple(bp_dict[bp_to_merge])
+        for pt in pts_to_merge:
+            # update the pt dict
+            pt_count = pretokens.pop(pt)
+            new_pt = self._apply_merge_to_pretoken_naive(
+                (bp_to_merge, (pt, pt_count))
+            )[0]        # someday i might need to refactor to clarify ptc and pt...
+            pretokens[new_pt] = pt_count
+
+            #update the bp dict
+            for i in range(len(pt) - 1):
+                bp = BytesPair(pt[i], pt[i+1])
+                if not bp_dict.__contains__(bp):
+                    continue
+                pt_set = bp_dict[bp]
+                pt_set.discard(pt)
+                if len(pt_set) == 0:
+                    bp_dict.pop(bp)
+
+            for i in range(len(new_pt) - 1):
+                bp = BytesPair(new_pt[i], new_pt[i+1])
+                if not bp_dict.__contains__(bp):
+                    bp_dict[bp] = set()
+                pt_set = bp_dict[bp]
+                pt_set.add(new_pt)
 
 class Tokenized(NamedTuple):
     vocab: dict[int, bytes]
     merge: list[BytesPair]
+
     def size(self) -> int:
         return len(self.vocab)
 
+
 class BytesPair(NamedTuple):
     first: bytes
-    second: bytes 
+    second: bytes
 
-def _greater(
-    a: tuple[BytesPair, int],
-    b: tuple[BytesPair, int] 
-) -> bool:
+
+def _greater(a: tuple[BytesPair, int], b: tuple[BytesPair, int]) -> bool:
     bp_a, cnt_a = a
     bp_b, cnt_b = b
     return True if cnt_a > cnt_b else cnt_a == cnt_b and bp_a > bp_b
